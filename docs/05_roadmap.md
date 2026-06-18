@@ -2,9 +2,9 @@
 
 LocalFlow targets a reliable **desktop-first**, **offline-capable** music player. Mobile native apps and cloud features are out of scope for now.
 
-## Phase 1 — Core desktop player ✅
+## Phase 1 — Core desktop player (dev preview) ✅
 
-**Status: Done (v1.0.0)**
+**Status: Done (v0.1.0)** — functional prototype, not a stable production release
 
 - [x] YouTube search (`GET /api/search`)
 - [x] Paste YouTube URL download

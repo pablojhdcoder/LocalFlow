@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
-## [1.0.0] - 2026-06-18
+## [0.1.0] - 2026-06-18
 
-First public release.
+First development release. **Not production-ready.**
 
 ### Added
 
@@ -42,7 +42,7 @@ First public release.
 #### Documentation
 
 - README, QUICKSTART, CONTRIBUTING, architecture docs
-- Release notes (`RELEASE_NOTES_v1.0.0.md`)
+- Release notes (`RELEASE_NOTES_v0.1.0.md`)
 - Issue and PR templates under `.github/`
 
 ### Design decisions
@@ -54,11 +54,12 @@ First public release.
 
 ### Known limitations
 
+- Early development — breaking changes expected before v1.0.0
 - No automated test suite
 - No playlists or metadata editing
 - No user authentication (intentional for local personal use)
 
 ---
 
-[Unreleased]: https://github.com/pablojhdcoder/LocalFlow/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/pablojhdcoder/LocalFlow/releases/tag/v1.0.0
+[Unreleased]: https://github.com/pablojhdcoder/LocalFlow/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/pablojhdcoder/LocalFlow/releases/tag/v0.1.0

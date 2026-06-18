@@ -1,4 +1,6 @@
-# LocalFlow v1.0.0 — First public release
+# LocalFlow v0.1.0 — First development release
+
+> **Development preview** — not production-ready. Expect breaking changes, missing features, and rough edges.
 
 LocalFlow is a local-first desktop music player. Search YouTube, download audio to your machine, and play it offline through a React PWA.
 
@@ -56,6 +58,7 @@ See [QUICKSTART.md](QUICKSTART.md) and [README.md](README.md) for full instructi
 
 ## Known limitations
 
+- **Early development** — APIs and UI may change without notice
 - No user authentication (by design)
 - No playlists yet
 - No automated test suite yet

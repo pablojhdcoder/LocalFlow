@@ -1,5 +1,11 @@
 # LocalFlow
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0--dev-orange)](CHANGELOG.md)
+[![GitHub](https://img.shields.io/badge/GitHub-pablojhdcoder%2FLocalFlow-181717?logo=github)](https://github.com/pablojhdcoder/LocalFlow)
+
+> **Development preview (v0.1.0)** — not production-ready. Features may change before v1.0.0.
+
 > **Tired of subscriptions and ads killing your flow?** Build your own music library on your computer — search YouTube, download tracks to your drive, and listen offline. No monthly fees. No interruptions. Your music, your machine.
 
 LocalFlow is a local-first desktop music player — no accounts, no cloud, no streaming server.
