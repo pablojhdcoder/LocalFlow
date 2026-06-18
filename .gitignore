@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+
+# Python
+backend/.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Build output
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+
+# User data (local storage)
+.localflow/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# AI assistants (local — do not commit)
+.cursor/
+GITHUB.md
+agent-transcripts/
+.cursor/projects/
+.cursor/**/*.jsonl
+.cursor/**/*.cache
+.aider*
+.aider.conf.yml
+.continue/
+.copilot/
+*.prompt.local.md
+*.ai.local.*
+.cursorrules
+
