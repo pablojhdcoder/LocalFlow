@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
 import type { Track, TrackStatus } from '../api/client';
-import { audioUrlFromTrack, getLibraryTracks, thumbnailUrlFromTrack } from '../api/client';
-import { formatDurationSeconds } from '../utils/format';
+import { audioUrlFromTrack, thumbnailUrlFromTrack } from '../api/client';
+import { formatAddedDate, formatDurationSeconds } from '../utils/format';
 
 type LibraryProps = {
-  reloadToken: number;
+  tracks: Track[];
+  loading: boolean;
+  error: string | null;
   onDeleteTrack: (trackId: string) => Promise<void>;
   onPlayTrack: (track: Track) => void;
   nowPlayingId: string | null;
+  onAddToQueue: (track: Track) => void;
+  queueTrackIds: Set<string>;
 };
 
 function statusClass(status: TrackStatus): string {
@@ -40,59 +43,28 @@ function DeleteIcon() {
   );
 }
 
+function QueueAddIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M3 6h18M3 12h14M3 18h10M19 15v6M16 18h6" />
+    </svg>
+  );
+}
+
 export default function Library({
-  reloadToken,
+  tracks,
+  loading,
+  error,
   onDeleteTrack,
   onPlayTrack,
   nowPlayingId,
+  onAddToQueue,
+  queueTrackIds,
 }: LibraryProps) {
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const hasActiveDownloads = useMemo(
-    () => tracks.some(t => t.status === 'pending' || t.status === 'downloading'),
-    [tracks],
-  );
-
-  async function loadTracks(): Promise<void> {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const resp = await getLibraryTracks(100, 0);
-      setTracks(resp.tracks || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      setError(message);
-      setTracks([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadTracks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reloadToken]);
-
-  useEffect(() => {
-    if (!hasActiveDownloads) return undefined;
-
-    const intervalId = window.setInterval(() => {
-      void loadTracks();
-    }, 2500);
-
-    return () => window.clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActiveDownloads, reloadToken]);
-
   async function handleDelete(trackId: string): Promise<void> {
     const ok = window.confirm('Delete this track from your library?');
     if (!ok) return;
-
     await onDeleteTrack(trackId);
-    setTracks(prev => prev.filter(t => t.id !== trackId));
   }
 
   return (
@@ -119,6 +91,7 @@ export default function Library({
             const audioUrl = audioUrlFromTrack(t);
             const isPlaying = nowPlayingId === t.id;
             const canPlay = t.status === 'ready' && Boolean(audioUrl);
+            const inQueue = queueTrackIds.has(t.id);
 
             return (
               <div
@@ -165,6 +138,8 @@ export default function Library({
                         <span style={{ marginLeft: 8 }}>
                           <span className={statusClass(t.status)}>{statusLabel(t)}</span>
                         </span>
+                      ) : t.createdAt ? (
+                        <span className="trackRowDate"> · Added {formatAddedDate(t.createdAt)}</span>
                       ) : null}
                     </div>
                   </div>
@@ -175,6 +150,20 @@ export default function Library({
                 </div>
 
                 <div className="trackRowActions">
+                  {canPlay ? (
+                    <button
+                      type="button"
+                      className={`iconButton${inQueue ? ' iconButtonActive' : ''}`}
+                      aria-label={inQueue ? 'Already in queue' : 'Add to queue'}
+                      title={inQueue ? 'Already in queue' : 'Add to queue'}
+                      onClick={e => {
+                        e.stopPropagation();
+                        onAddToQueue(t);
+                      }}
+                    >
+                      <QueueAddIcon />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="iconButton iconButtonDanger"

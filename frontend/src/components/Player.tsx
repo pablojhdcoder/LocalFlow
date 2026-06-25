@@ -1,18 +1,12 @@
-import { useEffect, useState, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { formatPlaybackTime } from '../utils/format';
 
 type PlayerProps = {
   audioUrl: string;
   audioRef: RefObject<HTMLAudioElement | null>;
+  onEnded?: () => void;
+  playKey: number;
 };
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
-  const total = Math.floor(seconds);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 function PlayIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -29,35 +23,43 @@ function PauseIcon() {
   );
 }
 
-export default function Player({ audioUrl, audioRef }: PlayerProps) {
+export default function Player({ audioUrl, audioRef, onEnded, playKey }: PlayerProps) {
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+
+  // Always-fresh reference to onEnded — avoids re-registering all audio listeners on each render
+  const onEndedRef = useRef(onEnded);
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  });
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const resolvedUrl = new URL(audioUrl, window.location.href).href;
-    if (audio.src !== resolvedUrl) {
-      audio.src = audioUrl;
-      setCurrentTime(0);
-      setDuration(0);
-      setPlaying(false);
-    }
+    // Always reset src on a new playback session — this is the only way to restart playback
+    // when the same URL is requested again (e.g. same song queued multiple times or repeated).
+    audio.src = audioUrl;
+    setCurrentTime(0);
+    setDuration(0);
+    setPlaying(false);
 
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
     const onDurationChange = () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    const onEnded = () => setPlaying(false);
+    const handleEnded = () => {
+      setPlaying(false);
+      onEndedRef.current?.();
+    };
 
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('loadedmetadata', onDurationChange);
-    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('ended', handleEnded);
 
     void audio.play().catch(() => {});
 
@@ -67,9 +69,11 @@ export default function Player({ audioUrl, audioRef }: PlayerProps) {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('loadedmetadata', onDurationChange);
-      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('ended', handleEnded);
     };
-  }, [audioRef, audioUrl]);
+    // playKey forces this effect to re-run even when audioUrl hasn't changed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioRef, audioUrl, playKey]);
 
   function togglePlay(): void {
     const audio = audioRef.current;
@@ -108,8 +112,8 @@ export default function Player({ audioUrl, audioRef }: PlayerProps) {
           style={{ '--progress': `${progress}%` } as CSSProperties}
         />
         <div className="playerTimes" aria-hidden="true">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
+          <span>{formatPlaybackTime(currentTime)}</span>
+          <span>{formatPlaybackTime(duration)}</span>
         </div>
       </div>
     </div>

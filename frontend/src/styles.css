@@ -74,6 +74,8 @@ body {
   margin: 0;
   padding: 0;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
 }
 
 #now-playing-root:not(:empty) {
@@ -508,10 +510,17 @@ a {
   flex-shrink: 0;
 }
 
+.trackRowDate {
+  font-size: 11px;
+  color: var(--text-subtle);
+  font-weight: 400;
+}
+
 .trackRowActions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 2px;
   width: 80px;
   min-width: 80px;
   flex-shrink: 0;
@@ -603,6 +612,11 @@ a {
   color: var(--danger);
 }
 
+.iconButtonActive {
+  color: var(--accent);
+  background: var(--accent-muted);
+}
+
 /* Status */
 
 .status {
@@ -631,12 +645,17 @@ a {
 
 /* Now playing */
 
-.nowPlayingBar {
+.nowPlayingShell {
   width: 100%;
-  margin: 0;
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
   backdrop-filter: blur(20px);
+}
+
+.nowPlayingBar {
+  width: 100%;
+  margin: 0;
+  background: transparent;
   padding: 10px 20px;
   padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
 }
@@ -698,8 +717,266 @@ a {
   min-width: 0;
 }
 
+.nowPlayingPlayerRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.nowPlayingPlayerWrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.playerNavBtn {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  transition: color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.playerNavBtn:hover {
+  color: var(--text);
+  transform: scale(1.08);
+}
+
+.nowPlayingActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.nowPlayingQueueBtn {
+  position: relative;
+}
+
+.queueBadge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(4px, -4px);
+}
+
 .nowPlayingClose {
   flex-shrink: 0;
+}
+
+/* Queue panel */
+
+.queuePanel {
+  max-height: min(36vh, 280px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: queueReveal 0.18s ease;
+}
+
+@keyframes queueReveal {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+
+  to {
+    opacity: 1;
+    max-height: min(36vh, 280px);
+  }
+}
+
+.queuePanelInner {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.queuePanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 6px;
+  flex-shrink: 0;
+}
+
+.queuePanelTitle {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.queuePanelClear {
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 0;
+  transition: color var(--transition);
+}
+
+.queuePanelClear:hover {
+  color: var(--text);
+}
+
+.queuePanelList {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 2px 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.queuePanelEmpty {
+  padding: 16px 0 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.queueItem {
+  display: grid;
+  grid-template-columns: 28px 36px minmax(0, 1fr) 48px 32px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: var(--radius-md);
+  transition: background var(--transition), opacity var(--transition);
+  cursor: grab;
+}
+
+.queueItem:hover {
+  background: var(--bg-hover);
+}
+
+.queueItemDragging {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+
+.queueItemOver {
+  background: var(--bg-active);
+}
+
+.queueItemIndex {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.queueItemIndexNum {
+  display: block;
+}
+
+.queueItemDragHandle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-subtle);
+}
+
+.queueItem:hover .queueItemIndexNum {
+  display: none;
+}
+
+.queueItem:hover .queueItemDragHandle {
+  display: flex;
+}
+
+.queueItemThumb {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg-hover);
+}
+
+.queueItemThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.queueItemInfo {
+  min-width: 0;
+}
+
+.queueItemTitle {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.queueItemArtist {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queueItemDuration {
+  font-size: 12px;
+  color: var(--text-subtle);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.queueItemRemove {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition), color var(--transition);
+}
+
+.queueItem:hover .queueItemRemove {
+  opacity: 1;
+}
+
+.queueItemRemove:hover {
+  background: var(--danger-muted);
+  color: var(--danger);
+}
+
+.nowPlayingShellQueueOpen .nowPlayingBar {
+  border-top: 1px solid var(--border);
 }
 
 .playerAudioHidden {
@@ -951,6 +1228,29 @@ a {
 
   .playerTimes {
     display: none;
+  }
+
+  .playerNavBtn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .queuePanelInner {
+    padding: 0 16px;
+  }
+
+  .queueItem {
+    grid-template-columns: 36px minmax(0, 1fr) 32px;
+    gap: 10px;
+  }
+
+  .queueItemIndex,
+  .queueItemDuration {
+    display: none;
+  }
+
+  .queueItemRemove {
+    opacity: 1;
   }
 }
 

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Track, TrackStatus, SearchResult, DownloadMeta } from './api/client';
 import {
+  audioUrlFromTrack,
   deleteLibraryTrack,
   downloadFromVideoUrl,
+  getLibraryTracks,
   pollDownloadUntilDone,
   searchTracks,
 } from './api/client';
@@ -44,8 +46,24 @@ export default function App() {
   const [libraryReloadToken, setLibraryReloadToken] = useState(0);
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
 
+  // Lifted from Library — tracks managed here so autoplay can access them regardless of active tab
+  const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+
+  // Playback queue — independent of the main library list; session-only (not persisted)
+  const [queue, setQueue] = useState<Track[]>([]);
+
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
+  // Incremented on every new playback session so Player restarts even when the URL is identical
+  const [playKey, setPlayKey] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Use this instead of setNowPlaying when starting a track (not when stopping)
+  function startPlayback(track: Track): void {
+    setNowPlaying(track);
+    setPlayKey(k => k + 1);
+  }
 
   const activeDownloadCount = useMemo(
     () =>
@@ -54,6 +72,14 @@ export default function App() {
       ).length,
     [pendingDownloads],
   );
+
+  const hasActiveDownloads = useMemo(
+    () => libraryTracks.some(t => t.status === 'pending' || t.status === 'downloading'),
+    [libraryTracks],
+  );
+
+  // Set of track IDs currently in the queue — passed to Library for visual indicators
+  const queueTrackIds = useMemo(() => new Set(queue.map(t => t.id)), [queue]);
 
   useEffect(() => {
     applyLocalflowDocumentSettings(settings);
@@ -64,6 +90,131 @@ export default function App() {
     document.documentElement.classList.toggle('hasNowPlaying', Boolean(nowPlaying));
     return () => document.documentElement.classList.remove('hasNowPlaying');
   }, [nowPlaying]);
+
+  // --- Library tracks loading (lifted from Library component) ---
+
+  const loadLibraryTracks = useCallback(async () => {
+    setLibraryLoading(true);
+    setLibraryError(null);
+    try {
+      const resp = await getLibraryTracks(100, 0);
+      setLibraryTracks(resp.tracks || []);
+    } catch (err) {
+      setLibraryError(err instanceof Error ? err.message : 'Unknown error');
+      setLibraryTracks([]);
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLibraryTracks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryReloadToken]);
+
+  // Poll while any track is still being processed
+  useEffect(() => {
+    if (!hasActiveDownloads) return undefined;
+    const intervalId = window.setInterval(() => { void loadLibraryTracks(); }, 2500);
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveDownloads, libraryReloadToken]);
+
+  // --- Playback navigation helpers ---
+
+  // Returns the list of ready tracks in visual (library) order, used for prev/next logic
+  function getPlayableTracks(): Track[] {
+    return libraryTracks.filter(t => t.status === 'ready' && Boolean(audioUrlFromTrack(t)));
+  }
+
+  // Called when a song ends naturally (autoplay) or the user presses Next
+  function handleTrackEnded(): void {
+    // Queue has priority over the library list
+    if (queue.length > 0) {
+      const [next, ...rest] = queue;
+      setQueue(rest);
+      startPlayback(next);
+      return;
+    }
+
+    // Fall back to sequential playback in library order (created_at DESC → visual top-to-bottom)
+    if (!nowPlaying || libraryTracks.length === 0) {
+      setNowPlaying(null);
+      return;
+    }
+
+    const playable = getPlayableTracks();
+
+    if (playable.length === 0) {
+      setNowPlaying(null);
+      return;
+    }
+
+    const currentIndex = playable.findIndex(t => t.id === nowPlaying.id);
+
+    // Stop at the end of the list or if the current track isn't found
+    if (currentIndex === -1 || currentIndex >= playable.length - 1) {
+      setNowPlaying(null);
+      return;
+    }
+
+    startPlayback(playable[currentIndex + 1]);
+  }
+
+  function handleNextTrack(): void {
+    handleTrackEnded();
+  }
+
+  function handlePrevTrack(): void {
+    const audio = audioRef.current;
+
+    // If more than 3 s into the track, restart rather than skipping back
+    if (audio && audio.currentTime > 3) {
+      audio.currentTime = 0;
+      return;
+    }
+
+    if (!nowPlaying) {
+      if (audio) audio.currentTime = 0;
+      return;
+    }
+
+    const playable = getPlayableTracks();
+    const currentIndex = playable.findIndex(t => t.id === nowPlaying.id);
+
+    if (currentIndex <= 0) {
+      // Already at the first track or track came from queue — just restart
+      if (audio) audio.currentTime = 0;
+      return;
+    }
+
+    startPlayback(playable[currentIndex - 1]);
+  }
+
+  // --- Queue management ---
+
+  function handleAddToQueue(track: Track): void {
+    setQueue(prev => [...prev, track]);
+  }
+
+  function handleRemoveFromQueue(index: number): void {
+    setQueue(prev => prev.filter((_, i) => i !== index));
+  }
+
+  function handleReorderQueue(from: number, to: number): void {
+    setQueue(prev => {
+      const next = [...prev];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next;
+    });
+  }
+
+  function handleClearQueue(): void {
+    setQueue([]);
+  }
+
+  // --- Search ---
 
   async function handleSearch(q: string): Promise<void> {
     const query = q.trim();
@@ -198,8 +349,16 @@ export default function App() {
   }
 
   async function handleDeleteTrack(trackId: string): Promise<void> {
+    // Optimistic update before the API call for instant UI feedback
+    setLibraryTracks(prev => prev.filter(t => t.id !== trackId));
+    setQueue(prev => prev.filter(t => t.id !== trackId));
+
+    if (nowPlaying?.id === trackId) {
+      audioRef.current?.pause();
+      setNowPlaying(null);
+    }
+
     await deleteLibraryTrack(trackId);
-    if (nowPlaying?.id === trackId) setNowPlaying(null);
     setLibraryReloadToken(t => t + 1);
   }
 
@@ -283,10 +442,14 @@ export default function App() {
             </div>
           ) : (
             <Library
-              reloadToken={libraryReloadToken}
+              tracks={libraryTracks}
+              loading={libraryLoading}
+              error={libraryError}
               onDeleteTrack={handleDeleteTrack}
-              onPlayTrack={setNowPlaying}
+              onPlayTrack={startPlayback}
               nowPlayingId={nowPlaying?.id ?? null}
+              onAddToQueue={handleAddToQueue}
+              queueTrackIds={queueTrackIds}
             />
           )}
         </div>
@@ -295,11 +458,19 @@ export default function App() {
       {nowPlaying ? (
         <NowPlayingBar
           track={nowPlaying}
+          playKey={playKey}
           audioRef={audioRef}
           onClose={() => {
             audioRef.current?.pause();
             setNowPlaying(null);
           }}
+          onEnded={handleTrackEnded}
+          onPrevTrack={handlePrevTrack}
+          onNextTrack={handleNextTrack}
+          queue={queue}
+          onRemoveFromQueue={handleRemoveFromQueue}
+          onReorderQueue={handleReorderQueue}
+          onClearQueue={handleClearQueue}
         />
       ) : null}
     </div>
