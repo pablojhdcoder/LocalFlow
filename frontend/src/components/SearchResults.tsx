@@ -1,4 +1,5 @@
-import type { SearchResult, TrackStatus, DownloadMeta } from '../api/client';
+import type { SearchResult, Track, TrackStatus, DownloadMeta } from '../api/client';
+import type { Playlist } from '../playlists/playlistTypes';
 import TrackCard from './TrackCard';
 
 type PendingDownload = {
@@ -15,6 +16,13 @@ type SearchResultsProps = {
   pendingDownloads: Record<string, PendingDownload>;
   isLoading?: boolean;
   onDownload: (videoUrl: string, meta?: DownloadMeta) => void;
+  // Map from sourceUrl → Track for already-downloaded tracks
+  libraryTracksBySourceUrl?: Map<string, Track>;
+  onPlayTrack?: (track: Track) => void;
+  onAddToQueue?: (track: Track) => void;
+  userPlaylists?: Playlist[];
+  onAddToPlaylist?: (playlistId: string, track: Track) => void;
+  onCreateAndAdd?: (track: Track) => void;
 };
 
 export default function SearchResults({
@@ -22,6 +30,12 @@ export default function SearchResults({
   pendingDownloads,
   isLoading,
   onDownload,
+  libraryTracksBySourceUrl,
+  onPlayTrack,
+  onAddToQueue,
+  userPlaylists,
+  onAddToPlaylist,
+  onCreateAndAdd,
 }: SearchResultsProps) {
   const visible = results.slice(0, 10);
 
@@ -53,6 +67,12 @@ export default function SearchResults({
           result={r}
           pending={pendingDownloads[r.videoUrl]}
           onDownload={onDownload}
+          libraryTrack={libraryTracksBySourceUrl?.get(r.videoUrl)}
+          onPlayTrack={onPlayTrack}
+          onAddToQueue={onAddToQueue}
+          userPlaylists={userPlaylists}
+          onAddToPlaylist={onAddToPlaylist}
+          onCreateAndAdd={onCreateAndAdd}
         />
       ))}
     </div>

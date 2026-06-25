@@ -39,9 +39,9 @@ LocalFlow targets a reliable **desktop-first**, **offline-capable** music player
 
 ## Phase 3 — Library features
 
-**Status: Planned**
+**Status: In progress**
 
-- [ ] Playlists (local, no sync)
+- [x] Playlists (local, no sync) — system (All Songs, Recently Played) + user playlists with CRUD, add/remove/reorder tracks
 - [ ] Metadata editing (title, artist)
 - [ ] Sort and filter library (artist, date, duration)
 - [ ] Bulk delete

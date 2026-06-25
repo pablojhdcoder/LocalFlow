@@ -1,3 +1,7 @@
+import type { Playlist } from '../playlists/playlistTypes';
+
+export type { Playlist };
+
 export type TrackStatus = 'pending' | 'downloading' | 'ready' | 'error';
 
 export type ApiErrorPayload = {
@@ -154,6 +158,71 @@ export async function deleteLibraryTrack(trackId: string): Promise<{ message?: s
 
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// --- Playlists ---
+
+export async function getPlaylists(): Promise<{ playlists: Playlist[] }> {
+  return apiRequest('/api/playlists', { method: 'GET' });
+}
+
+export async function createPlaylist(name: string): Promise<{ playlist: Playlist }> {
+  return apiRequest('/api/playlists', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function renamePlaylist(id: string, name: string): Promise<{ playlist: Playlist }> {
+  return apiRequest(`/api/playlists/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function deletePlaylist(id: string): Promise<{ message?: string }> {
+  return apiRequest(`/api/playlists/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function getPlaylistTracks(playlistId: string): Promise<{ tracks: Track[] }> {
+  return apiRequest(`/api/playlists/${encodeURIComponent(playlistId)}/tracks`, { method: 'GET' });
+}
+
+export async function addTrackToPlaylist(
+  playlistId: string,
+  trackId: string,
+): Promise<{ message?: string }> {
+  return apiRequest(`/api/playlists/${encodeURIComponent(playlistId)}/tracks`, {
+    method: 'POST',
+    body: JSON.stringify({ trackId }),
+  });
+}
+
+export async function removeTrackFromPlaylist(
+  playlistId: string,
+  trackId: string,
+): Promise<{ message?: string }> {
+  return apiRequest(
+    `/api/playlists/${encodeURIComponent(playlistId)}/tracks/${encodeURIComponent(trackId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function reorderPlaylistTracks(
+  playlistId: string,
+  trackIds: string[],
+): Promise<{ message?: string }> {
+  return apiRequest(`/api/playlists/${encodeURIComponent(playlistId)}/tracks/reorder`, {
+    method: 'PUT',
+    body: JSON.stringify({ trackIds }),
+  });
+}
+
+export async function recordPlayHistory(trackId: string): Promise<{ message?: string }> {
+  return apiRequest('/api/play-history', {
+    method: 'POST',
+    body: JSON.stringify({ trackId }),
+  });
 }
 
 export async function pollDownloadUntilDone(

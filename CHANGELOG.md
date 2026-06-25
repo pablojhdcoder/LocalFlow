@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+#### Playback
+
+- Repeat modes (off / all / one), shuffle with previous-track history
+- Keyboard shortcuts (play/pause, seek, prev/next, queue, mute)
+- Media Session API integration for OS media keys
+- Volume, mute, and playback speed controls
+- Session persistence (queue, now playing, position) via `localflow_playback_v1`
+- Play next vs add to queue, toast feedback
+
+#### Playlists
+
+- System playlists: All Songs, Recently Played
+- User playlists: create, rename, delete, add/remove/reorder tracks
+- Play history API (`POST /api/play-history`) with legacy `localStorage` migration
+- Add to playlist from library and search
+- Playlist sidebar browser UI
+
+### Fixed
+
+- Next track no longer loops under repeat-one
+- Queue drains before repeat-one on natural track end
+- Playlist detail refreshes after remove/reorder/add
+- All Songs shows downloading tracks again
+
+### Changed
+
+- Library reorganized around playlist browser (removed standalone Recently Played section)
 
 ## [0.1.0] - 2026-06-18
 

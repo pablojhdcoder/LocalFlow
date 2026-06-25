@@ -85,7 +85,7 @@ There is no authentication middleware. All endpoints are open on the local netwo
 
 ## Data model
 
-Single table: `tracks`
+### `tracks`
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -102,7 +102,38 @@ Single table: `tracks`
 | `created_at` | REAL | Unix timestamp |
 | `updated_at` | REAL | Unix timestamp |
 
-No users table. No join tables. One library per machine.
+### `playlists`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT PK | UUID for user playlists |
+| `name` | TEXT | Display name (1–80 chars) |
+| `kind` | TEXT | `user` only (system playlists resolved in code) |
+| `system_key` | TEXT | Reserved for future use |
+| `created_at` | REAL | Unix timestamp |
+| `updated_at` | REAL | Unix timestamp |
+
+### `playlist_tracks`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `playlist_id` | TEXT FK | → `playlists.id` |
+| `track_id` | TEXT FK | → `tracks.id` |
+| `position` | INTEGER | 0-based order |
+| `added_at` | REAL | Unix timestamp |
+
+PK is `(playlist_id, track_id)` — no duplicates within a playlist.
+
+### `play_history`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `track_id` | TEXT PK | → `tracks.id` |
+| `played_at` | REAL | Unix timestamp, updated on each replay |
+
+At most 50 entries. Replaying a track updates `played_at` and moves it to the top.
+
+No users table. One library per machine.
 
 ## Frontend architecture
 

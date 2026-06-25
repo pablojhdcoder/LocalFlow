@@ -145,6 +145,51 @@ curl -X DELETE http://localhost:3000/api/library/tracks/{trackId}
 
 Each track in responses includes `audioUrl` and `thumbnailUrl` when available.
 
+### Playlists
+
+**List all playlists** (includes system + user):
+
+```bash
+curl http://localhost:3000/api/playlists
+```
+
+**Create playlist**:
+
+```bash
+curl -X POST http://localhost:3000/api/playlists \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Chill"}'
+```
+
+**Rename / delete user playlist**:
+
+```bash
+curl -X PATCH  http://localhost:3000/api/playlists/{id} \
+  -H "Content-Type: application/json" -d '{"name":"New Name"}'
+curl -X DELETE http://localhost:3000/api/playlists/{id}
+```
+
+**Playlist tracks** (works for `system:all_songs`, `system:recently_played`, or user IDs):
+
+```bash
+curl http://localhost:3000/api/playlists/{id}/tracks
+curl -X POST   http://localhost:3000/api/playlists/{id}/tracks \
+  -H "Content-Type: application/json" -d '{"trackId":"..."}'
+curl -X DELETE http://localhost:3000/api/playlists/{id}/tracks/{trackId}
+curl -X PUT    http://localhost:3000/api/playlists/{id}/tracks/reorder \
+  -H "Content-Type: application/json" -d '{"trackIds":["id1","id2"]}'
+```
+
+### Play history
+
+```bash
+curl -X POST http://localhost:3000/api/play-history \
+  -H "Content-Type: application/json" \
+  -d '{"trackId":"..."}'
+```
+
+Idempotent — replaying a track updates its `played_at` and moves it to the top of Recently Played.
+
 ### Static files
 
 | Path | Content |

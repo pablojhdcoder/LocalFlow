@@ -98,6 +98,43 @@ Root directory (default `~/.localflow/`):
 | `temp/` | Temporary files during active downloads |
 | `localflow.db` | SQLite database (`tracks` table) |
 
+## Playlist
+
+An ordered collection of tracks. LocalFlow has two kinds:
+
+### System playlists
+
+Virtual playlists that are computed from the database — they cannot be renamed or deleted:
+
+| ID | Name | Behaviour |
+|----|------|-----------|
+| `system:all_songs` | All Songs | All `ready` tracks, newest first |
+| `system:recently_played` | Recently Played | Last 50 tracks played, most recent first |
+
+### User playlists
+
+Created, renamed, and deleted by the user. Each user playlist stores an ordered list of tracks (`playlist_tracks` join table). One track cannot appear twice in the same playlist.
+
+Deleting a user playlist removes the playlist and all its rows in `playlist_tracks`; the actual tracks remain in the library.
+
+### Playlist API fields
+
+| Field | Meaning |
+|-------|---------|
+| `id` | UUID for user playlists; `system:all_songs` / `system:recently_played` for system |
+| `name` | Display name |
+| `kind` | `"system"` or `"user"` |
+| `systemKey` | `"all_songs"` or `"recently_played"` (system playlists only) |
+| `trackCount` | Number of tracks |
+| `createdAt` | Creation timestamp (user playlists only, ms since epoch) |
+| `updatedAt` | Last change timestamp (user playlists only) |
+
+## Play history
+
+Records the last time each track was played. Used to populate the Recently Played system playlist. The table keeps at most 50 entries; replaying the same track moves it to the top.
+
+Play events are written via `POST /api/play-history` each time a track starts playing. The frontend also performs a one-shot migration from `localStorage` (`localflow_history_v1`) to the backend on first load.
+
 ## Explicit non-concepts
 
 These were removed in the legacy refactor and should not appear in new code or docs:
