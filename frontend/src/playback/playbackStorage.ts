@@ -1,3 +1,5 @@
+import type { PlaybackContextSource } from './playbackContext';
+
 export type RepeatMode = 'off' | 'all' | 'one';
 
 export type PlaybackStorageState = {
@@ -8,6 +10,9 @@ export type PlaybackStorageState = {
   shuffleEnabled: boolean;
   volume: number;
   playbackRate: number;
+  /** JSON-serializable context origin; tracks are stored separately as IDs */
+  playbackContextSource: PlaybackContextSource;
+  playbackContextTrackIds: string[];
 };
 
 const KEY = 'localflow_playback_v1';
@@ -23,6 +28,8 @@ const DEFAULTS: PlaybackStorageState = {
   shuffleEnabled: false,
   volume: 1,
   playbackRate: 1,
+  playbackContextSource: null,
+  playbackContextTrackIds: [],
 };
 
 export function readPlaybackStorage(): PlaybackStorageState {
@@ -45,6 +52,14 @@ export function readPlaybackStorage(): PlaybackStorageState {
       volume:
         typeof parsed.volume === 'number' ? Math.max(0, Math.min(1, parsed.volume)) : 1,
       playbackRate,
+      // Context source is persisted as a plain JSON object; accept it as-is (validated at read site)
+      playbackContextSource:
+        parsed.playbackContextSource !== undefined
+          ? (parsed.playbackContextSource as PlaybackContextSource)
+          : null,
+      playbackContextTrackIds: Array.isArray(parsed.playbackContextTrackIds)
+        ? (parsed.playbackContextTrackIds as string[])
+        : [],
     };
   } catch {
     return { ...DEFAULTS };

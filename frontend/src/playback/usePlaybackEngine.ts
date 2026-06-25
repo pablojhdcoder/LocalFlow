@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type RefObject, ty
 import type { Track } from '../api/client';
 import { audioUrlFromTrack } from '../api/client';
 import { readPlaybackStorage, writePlaybackStorage, type RepeatMode } from './playbackStorage';
+import type { PlaybackContext } from './playbackContext';
 
 export type { RepeatMode };
+export type { PlaybackContext };
 
 const PLAYBACK_RATES = [0.75, 1, 1.25, 1.5] as const;
 
@@ -17,7 +19,8 @@ type PlaybackEngineOptions = {
 export type PlaybackEngine = {
   nowPlaying: Track | null;
   playKey: number;
-  startPlayback: (track: Track) => void;
+  /** Start playing a track. Pass `context` to drive subsequent prev/next within that set. */
+  startPlayback: (track: Track, context?: PlaybackContext) => void;
   stopPlayback: () => void;
   handleTrackEnded: () => void;
   handleNextTrack: () => void;
@@ -38,6 +41,8 @@ export type PlaybackEngine = {
   restoreTime: number;
   isRestoring: boolean;
   onRestored: () => void;
+  /** The playback context set on the last explicit user-initiated play action. */
+  playbackContext: PlaybackContext | null;
 };
 
 export function usePlaybackEngine({
@@ -59,6 +64,10 @@ export function usePlaybackEngine({
   const [muted, setMuted] = useState(false);
   const [playbackRate, setPlaybackRateState] = useState(saved.playbackRate);
 
+  // Playback context — only set when user explicitly starts a track; cleared on stop.
+  // Not persisted: playlist tracks would need to be re-fetched on restore.
+  const [playbackContext, setPlaybackContext] = useState<PlaybackContext | null>(null);
+
   // Restore-on-load state: after the initial library fetch, restore the previous session paused
   const hasRestoredRef = useRef(false);
   const [restoreTime, setRestoreTime] = useState(0);
@@ -74,6 +83,14 @@ export function usePlaybackEngine({
 
   function getPlayableTracks(): Track[] {
     return libraryTracks.filter(t => t.status === 'ready' && Boolean(audioUrlFromTrack(t)));
+  }
+
+  /** Returns context tracks if a context is set, otherwise falls back to the full library. */
+  function getContextTracks(): Track[] {
+    if (playbackContext && playbackContext.tracks.length > 0) {
+      return playbackContext.tracks;
+    }
+    return getPlayableTracks();
   }
 
   // --- Restore previous session after initial library load ---
@@ -185,29 +202,49 @@ export function usePlaybackEngine({
 
   // --- Playback functions ---
 
-  // pushHistory: false when navigating backwards so we don't corrupt the history stack
-  function startPlayback(track: Track, pushHistory = true): void {
+  /**
+   * Internal helper — separates history-push control from the public API.
+   * Does NOT update playbackContext; callers that need a context change use startPlayback().
+   */
+  function _advance(track: Track, pushHistory: boolean): void {
     if (pushHistory && nowPlaying && nowPlaying.id !== track.id) {
       playedHistoryRef.current = [nowPlaying, ...playedHistoryRef.current].slice(0, 50);
     }
     setNowPlaying(track);
     setPlayKey(k => k + 1);
-    // Clear any pending restore — explicit playback always starts fresh
     setIsRestoring(false);
     setRestoreTime(0);
+  }
+
+  /**
+   * Public API: start a track, optionally setting a new playback context.
+   * Always pushes the previous track to shuffle history.
+   */
+  function startPlayback(track: Track, context?: PlaybackContext): void {
+    if (context !== undefined) {
+      setPlaybackContext(context);
+    }
+    _advance(track, true);
   }
 
   function stopPlayback(): void {
     audioRef.current?.pause();
     setNowPlaying(null);
+    setPlaybackContext(null);
   }
 
-  // Queue always wins. repeat-one only applies on natural track end (not Next button).
+  /**
+   * Advance to the next track.
+   * Queue always wins. repeat-one only triggers on natural track end (allowRepeatOne=true),
+   * not on explicit Next press.
+   * Navigation stays within playbackContext.tracks when a context is set.
+   */
   function advancePlayback(allowRepeatOne: boolean): void {
+    // Queue has priority over everything
     if (queue.length > 0) {
       const [next, ...rest] = queue;
       setQueue(rest);
-      startPlayback(next);
+      _advance(next, true);
       return;
     }
 
@@ -221,7 +258,8 @@ export function usePlaybackEngine({
       return;
     }
 
-    const playable = getPlayableTracks();
+    // Navigate within context tracks (or library if no context)
+    const playable = getContextTracks();
 
     if (playable.length === 0) {
       setNowPlaying(null);
@@ -236,19 +274,20 @@ export function usePlaybackEngine({
         return;
       }
       const randomIndex = Math.floor(Math.random() * others.length);
-      startPlayback(others[randomIndex]);
+      _advance(others[randomIndex], true);
       return;
     }
 
     const currentIndex = playable.findIndex(t => t.id === nowPlaying.id);
 
     if (currentIndex !== -1 && currentIndex < playable.length - 1) {
-      startPlayback(playable[currentIndex + 1]);
+      _advance(playable[currentIndex + 1], true);
       return;
     }
 
+    // At the end of the context/library
     if (repeatMode === 'all') {
-      startPlayback(playable[0]);
+      _advance(playable[0], true);
     } else {
       setNowPlaying(null);
     }
@@ -275,8 +314,7 @@ export function usePlaybackEngine({
     if (shuffleEnabled && playedHistoryRef.current.length > 0) {
       const prev = playedHistoryRef.current[0];
       playedHistoryRef.current = playedHistoryRef.current.slice(1);
-      // Don't push the current track to history — we're going backwards
-      startPlayback(prev, false);
+      _advance(prev, false);
       return;
     }
 
@@ -285,7 +323,8 @@ export function usePlaybackEngine({
       return;
     }
 
-    const playable = getPlayableTracks();
+    // Navigate within context tracks (or library if no context)
+    const playable = getContextTracks();
     const currentIndex = playable.findIndex(t => t.id === nowPlaying.id);
 
     if (currentIndex <= 0) {
@@ -293,7 +332,7 @@ export function usePlaybackEngine({
       return;
     }
 
-    startPlayback(playable[currentIndex - 1], false);
+    _advance(playable[currentIndex - 1], false);
   }
 
   function cycleRepeat(): void {
@@ -337,22 +376,24 @@ export function usePlaybackEngine({
     // repeat-one: the same track plays next
     if (repeatMode === 'one') return nowPlaying;
 
-    const playable = libraryTracks.filter(
-      t => t.status === 'ready' && Boolean(audioUrlFromTrack(t)),
-    );
+    // Use context tracks when available, otherwise the full library
+    const playable = playbackContext && playbackContext.tracks.length > 0
+      ? playbackContext.tracks
+      : libraryTracks.filter(t => t.status === 'ready' && Boolean(audioUrlFromTrack(t)));
+
     const currentIndex = playable.findIndex(t => t.id === nowPlaying.id);
 
     if (currentIndex !== -1 && currentIndex < playable.length - 1) {
       return playable[currentIndex + 1];
     }
 
-    // At the end of library: repeat-all loops back to the first track
+    // At the end: repeat-all loops back to the first track in the context
     if (repeatMode === 'all' && playable.length > 0) {
       return playable[0];
     }
 
     return null;
-  }, [queue, nowPlaying, libraryTracks, shuffleEnabled, repeatMode]);
+  }, [queue, nowPlaying, libraryTracks, shuffleEnabled, repeatMode, playbackContext]);
 
   return {
     nowPlaying,
@@ -378,5 +419,6 @@ export function usePlaybackEngine({
     restoreTime,
     isRestoring,
     onRestored,
+    playbackContext,
   };
 }
