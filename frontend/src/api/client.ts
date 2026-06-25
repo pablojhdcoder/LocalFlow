@@ -33,6 +33,7 @@ export type Track = {
   thumbnailUrl?: string;
   audioPath?: string;
   thumbnailPath?: string;
+  createdAt?: number;
 };
 
 function normalizeBaseUrl(url: string): string {
