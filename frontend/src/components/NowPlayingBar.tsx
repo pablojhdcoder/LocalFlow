@@ -1,9 +1,11 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import type { Track } from '../api/client';
 import { audioUrlFromTrack, thumbnailUrlFromTrack } from '../api/client';
 import { formatDurationSeconds } from '../utils/format';
+import type { RepeatMode } from '../playback/usePlaybackEngine';
 import Player from './Player';
+
 type NowPlayingBarProps = {
   track: Track;
   playKey: number;
@@ -16,6 +18,27 @@ type NowPlayingBarProps = {
   onRemoveFromQueue: (index: number) => void;
   onReorderQueue: (from: number, to: number) => void;
   onClearQueue: () => void;
+  // Playback engine controls
+  repeatMode: RepeatMode;
+  onCycleRepeat: () => void;
+  shuffleEnabled: boolean;
+  onToggleShuffle: () => void;
+  volume: number;
+  onVolumeChange: (v: number) => void;
+  muted: boolean;
+  onToggleMute: () => void;
+  playbackRate: number;
+  onCyclePlaybackRate: () => void;
+  upNextTrack: Track | null;
+  isQueueOpen: boolean;
+  onSetQueueOpen: (v: boolean) => void;
+  // Restore props forwarded to Player
+  restoreTime?: number;
+  startPaused?: boolean;
+  onRestored?: () => void;
+  // Queue UX enhancements (Chat B)
+  onBrowseLibrary?: () => void;
+  onAddToQueue?: (track: Track) => void;
 };
 
 function getNowPlayingRoot(): HTMLElement {
@@ -27,6 +50,8 @@ function getNowPlayingRoot(): HTMLElement {
   document.body.appendChild(root);
   return root;
 }
+
+// --- Icons ---
 
 function CloseIcon() {
   return (
@@ -78,6 +103,84 @@ function RemoveIcon() {
   );
 }
 
+function RepeatIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M17 1l4 4-4 4" />
+      <path d="M3 11V9a4 4 0 014-4h14" />
+      <path d="M7 23l-4-4 4-4" />
+      <path d="M21 13v2a4 4 0 01-4 4H3" />
+    </svg>
+  );
+}
+
+function ShuffleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M16 3h5v5" />
+      <path d="M4 20L21 3" />
+      <path d="M21 16v5h-5" />
+      <path d="M15 15l6 6" />
+      <path d="M4 4l5 5" />
+    </svg>
+  );
+}
+
+function VolumeIcon({ muted, volume }: { muted: boolean; volume: number }) {
+  if (muted || volume === 0) {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+        <path d="M23 9l-6 6M17 9l6 6" />
+      </svg>
+    );
+  }
+  if (volume < 0.5) {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+        <path d="M15.54 8.46a5 5 0 010 7.07" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M11 5L6 9H2v6h4l5 4V5z" />
+      <path d="M19.07 4.93a10 10 0 010 14.14" />
+      <path d="M15.54 8.46a5 5 0 010 7.07" />
+    </svg>
+  );
+}
+
+// --- Repeat button with optional "1" badge ---
+
+function RepeatButton({
+  repeatMode,
+  onCycleRepeat,
+}: {
+  repeatMode: RepeatMode;
+  onCycleRepeat: () => void;
+}) {
+  const isActive = repeatMode !== 'off';
+  const label =
+    repeatMode === 'off' ? 'Repeat: off' : repeatMode === 'all' ? 'Repeat: all' : 'Repeat: one';
+
+  return (
+    <button
+      type="button"
+      className={`iconButton nowPlayingRepeatBtn${isActive ? ' iconButtonActive' : ''}`}
+      onClick={onCycleRepeat}
+      aria-label={label}
+      title={label}
+    >
+      <RepeatIcon />
+      {repeatMode === 'one' ? (
+        <span className="repeatOneBadge" aria-hidden="true">1</span>
+      ) : null}
+    </button>
+  );
+}
+
 export default function NowPlayingBar({
   track,
   playKey,
@@ -90,11 +193,29 @@ export default function NowPlayingBar({
   onRemoveFromQueue,
   onReorderQueue,
   onClearQueue,
+  repeatMode,
+  onCycleRepeat,
+  shuffleEnabled,
+  onToggleShuffle,
+  volume,
+  onVolumeChange,
+  muted,
+  onToggleMute,
+  playbackRate,
+  onCyclePlaybackRate,
+  upNextTrack,
+  isQueueOpen,
+  onSetQueueOpen,
+  restoreTime,
+  startPaused,
+  onRestored,
+  onBrowseLibrary,
+  onAddToQueue,
 }: NowPlayingBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
-  const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isDragOverPanel, setIsDragOverPanel] = useState(false);
 
   const audioUrl = audioUrlFromTrack(track);
   const thumbnailUrl = thumbnailUrlFromTrack(track);
@@ -150,10 +271,52 @@ export default function NowPlayingBar({
     setDragOverIndex(null);
   }
 
+  // --- Drag-and-drop: library track → queue panel ---
+
+  function handlePanelDragOver(e: React.DragEvent): void {
+    if (e.dataTransfer.types.includes('application/x-localflow-track')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDragOverPanel(true);
+    }
+  }
+
+  function handlePanelDragLeave(e: React.DragEvent): void {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setIsDragOverPanel(false);
+    }
+  }
+
+  function handlePanelDrop(e: React.DragEvent): void {
+    e.preventDefault();
+    setIsDragOverPanel(false);
+    try {
+      const data = e.dataTransfer.getData('application/x-localflow-track');
+      if (data) {
+        const dropped = JSON.parse(data) as Track;
+        onAddToQueue?.(dropped);
+      }
+    } catch {
+      // Ignore malformed drag data
+    }
+  }
+
+  // Format playback rate as "1×", "1.25×", etc.
+  const rateLabel = playbackRate === 1 ? '1×' : `${playbackRate}×`;
+
+  const volumePct = muted ? 0 : volume * 100;
+
   return createPortal(
     <div className={`nowPlayingShell${isQueueOpen ? ' nowPlayingShellQueueOpen' : ''}`}>
       {isQueueOpen ? (
-        <div className="queuePanel" role="region" aria-label="Playback queue">
+        <div
+          className={`queuePanel${isDragOverPanel ? ' queuePanelDropTarget' : ''}`}
+          role="region"
+          aria-label="Playback queue"
+          onDragOver={handlePanelDragOver}
+          onDragLeave={handlePanelDragLeave}
+          onDrop={handlePanelDrop}
+        >
           <div className="queuePanelInner">
             <div className="queuePanelHeader">
               <span className="queuePanelTitle">
@@ -226,7 +389,24 @@ export default function NowPlayingBar({
               </div>
             ) : (
               <div className="queuePanelEmpty">
-                Nothing queued yet. Use the queue button on any track in your library.
+                Nothing queued yet.
+                {onBrowseLibrary ? (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      className="queuePanelBrowseLink"
+                      onClick={() => {
+                        onBrowseLibrary();
+                        onSetQueueOpen(false);
+                      }}
+                    >
+                      Browse library
+                    </button>
+                  </>
+                ) : (
+                  <> Use the queue button on any track in your library.</>
+                )}
               </div>
             )}
           </div>
@@ -235,6 +415,8 @@ export default function NowPlayingBar({
 
       <div ref={barRef} className="nowPlayingBar" role="region" aria-label="Now playing">
         <div className="nowPlayingInner">
+
+          {/* Track metadata + up next */}
           <div className="nowPlayingMeta">
             <div className="nowPlayingThumb" aria-hidden="true">
               {thumbnailUrl ? <img src={thumbnailUrl} alt="" /> : null}
@@ -242,9 +424,15 @@ export default function NowPlayingBar({
             <div className="nowPlayingText">
               <div className="nowPlayingTitle">{track.title}</div>
               <div className="artist">{track.artist}</div>
+              {upNextTrack ? (
+                <div className="upNextLine" title={`Up next: ${upNextTrack.artist} — ${upNextTrack.title}`}>
+                  Up next: {upNextTrack.artist} — {upNextTrack.title}
+                </div>
+              ) : null}
             </div>
           </div>
 
+          {/* Player controls (prev / play-pause-seek / next) */}
           <div className="nowPlayingControls">
             <div className="nowPlayingPlayerRow">
               <button
@@ -252,13 +440,21 @@ export default function NowPlayingBar({
                 className="iconButton playerNavBtn"
                 onClick={onPrevTrack}
                 aria-label="Previous track"
-                title="Previous"
+                title="Previous (Shift+←)"
               >
                 <PrevIcon />
               </button>
 
               <div className="nowPlayingPlayerWrap">
-                <Player audioUrl={audioUrl} audioRef={audioRef} onEnded={onEnded} playKey={playKey} />
+                <Player
+                  audioUrl={audioUrl}
+                  audioRef={audioRef}
+                  onEnded={onEnded}
+                  playKey={playKey}
+                  startPaused={startPaused}
+                  restoreTime={restoreTime}
+                  onRestored={onRestored}
+                />
               </div>
 
               <button
@@ -266,21 +462,69 @@ export default function NowPlayingBar({
                 className="iconButton playerNavBtn"
                 onClick={onNextTrack}
                 aria-label="Next track"
-                title="Next"
+                title="Next (Shift+→)"
               >
                 <NextIcon />
               </button>
             </div>
           </div>
 
+          {/* Secondary controls: shuffle, repeat, speed, volume, queue, close */}
           <div className="nowPlayingActions">
             <button
               type="button"
+              className={`iconButton nowPlayingShuffleBtn${shuffleEnabled ? ' iconButtonActive' : ''}`}
+              onClick={onToggleShuffle}
+              aria-label={shuffleEnabled ? 'Shuffle: on' : 'Shuffle: off'}
+              aria-pressed={shuffleEnabled}
+              title="Shuffle (S)"
+            >
+              <ShuffleIcon />
+            </button>
+
+            <RepeatButton repeatMode={repeatMode} onCycleRepeat={onCycleRepeat} />
+
+            <button
+              type="button"
+              className={`nowPlayingSpeedBtn${playbackRate !== 1 ? ' nowPlayingSpeedBtnActive' : ''}`}
+              onClick={onCyclePlaybackRate}
+              aria-label={`Playback speed: ${rateLabel}`}
+              title="Cycle speed"
+            >
+              {rateLabel}
+            </button>
+
+            {/* Volume: icon (mute toggle) + slider */}
+            <div className="nowPlayingVolumeControl">
+              <button
+                type="button"
+                className={`iconButton nowPlayingVolumeBtn${muted || volume === 0 ? ' iconButtonActive' : ''}`}
+                onClick={onToggleMute}
+                aria-label={muted ? 'Unmute (M)' : 'Mute (M)'}
+                title={muted ? 'Unmute (M)' : 'Mute (M)'}
+              >
+                <VolumeIcon muted={muted} volume={volume} />
+              </button>
+              <input
+                type="range"
+                className="nowPlayingVolumeSlider"
+                min={0}
+                max={1}
+                step={0.02}
+                value={muted ? 0 : volume}
+                onChange={e => onVolumeChange(Number(e.target.value))}
+                aria-label="Volume"
+                style={{ '--vol-pct': `${volumePct}%` } as CSSProperties}
+              />
+            </div>
+
+            <button
+              type="button"
               className={`iconButton nowPlayingQueueBtn${isQueueOpen ? ' iconButtonActive' : ''}`}
-              onClick={() => setIsQueueOpen(open => !open)}
+              onClick={() => onSetQueueOpen(!isQueueOpen)}
               aria-label={isQueueOpen ? 'Close queue' : 'Open queue'}
               aria-pressed={isQueueOpen}
-              title={queue.length > 0 ? `Queue (${queue.length})` : 'Queue'}
+              title={queue.length > 0 ? `Queue (${queue.length}) — Q` : 'Queue (Q)'}
             >
               <QueueIcon />
               {queue.length > 0 ? (
