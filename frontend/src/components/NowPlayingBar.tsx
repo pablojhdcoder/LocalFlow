@@ -4,6 +4,7 @@ import type { Track } from '../api/client';
 import { audioUrlFromTrack, thumbnailUrlFromTrack } from '../api/client';
 import { formatDurationSeconds } from '../utils/format';
 import type { RepeatMode } from '../playback/usePlaybackEngine';
+import type { PlaybackContext } from '../playback/playbackContext';
 import Player from './Player';
 
 type NowPlayingBarProps = {
@@ -36,9 +37,11 @@ type NowPlayingBarProps = {
   restoreTime?: number;
   startPaused?: boolean;
   onRestored?: () => void;
-  // Queue UX enhancements (Chat B)
+  // Queue UX enhancements
   onBrowseLibrary?: () => void;
   onAddToQueue?: (track: Track) => void;
+  /** Playback context set by the last explicit user play action — drives the source label. */
+  playbackContext?: PlaybackContext | null;
 };
 
 function getNowPlayingRoot(): HTMLElement {
@@ -211,6 +214,7 @@ export default function NowPlayingBar({
   onRestored,
   onBrowseLibrary,
   onAddToQueue,
+  playbackContext,
 }: NowPlayingBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -303,6 +307,16 @@ export default function NowPlayingBar({
 
   // Format playback rate as "1×", "1.25×", etc.
   const rateLabel = playbackRate === 1 ? '1×' : `${playbackRate}×`;
+
+  // Source label: shown for named contexts (user playlists, recently played)
+  // All Songs and search are hidden to avoid visual noise
+  const sourceLabel: string | null = (() => {
+    const src = playbackContext?.source;
+    if (!src) return null;
+    if (src.type === 'user_playlist') return `From: ${src.playlistName}`;
+    if (src.type === 'recently_played') return 'From: Recently Played';
+    return null;
+  })();
 
   const volumePct = muted ? 0 : volume * 100;
 
@@ -427,6 +441,11 @@ export default function NowPlayingBar({
               {upNextTrack ? (
                 <div className="upNextLine" title={`Up next: ${upNextTrack.artist} — ${upNextTrack.title}`}>
                   Up next: {upNextTrack.artist} — {upNextTrack.title}
+                </div>
+              ) : null}
+              {sourceLabel ? (
+                <div className="playbackSourceLabel" title={sourceLabel}>
+                  {sourceLabel}
                 </div>
               ) : null}
             </div>

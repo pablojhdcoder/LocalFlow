@@ -9,6 +9,7 @@ import {
 } from '../queue/queueActions';
 import type { Playlist } from '../playlists/playlistTypes';
 import { PLAYLIST_ALL_SONGS, PLAYLIST_RECENTLY_PLAYED } from '../playlists/playlistTypes';
+import type { PlaybackContext } from '../playback/playbackContext';
 import AddToPlaylistMenu from './AddToPlaylistMenu';
 
 type PlaylistDetailProps = {
@@ -20,7 +21,7 @@ type PlaylistDetailProps = {
   userPlaylists: Playlist[];
   recentlyPlayedVersion: number;
   playlistTracksVersion: number;
-  onPlayTrack: (track: Track) => void;
+  onPlayTrack: (track: Track, context?: PlaybackContext) => void;
   onPlayNext: (track: Track) => void;
   onAddToQueue: (track: Track) => void;
   onDeleteTrack: (trackId: string) => Promise<void>;
@@ -263,6 +264,31 @@ export default function PlaylistDetail({
 
   const loading = isAllSongs ? libraryLoading : playlistLoading;
 
+  // Ready-to-play tracks in current display order — used as the autoplay context
+  const playableTracksInDisplayOrder = useMemo(
+    () => visibleTracks.filter(t => t.status === 'ready' && Boolean(audioUrlFromTrack(t))),
+    [visibleTracks],
+  );
+
+  /** Build the correct PlaybackContext for the current playlist view. */
+  function buildContext(): PlaybackContext {
+    if (isAllSongs) {
+      return { source: { type: 'all_songs' }, tracks: playableTracksInDisplayOrder };
+    }
+    if (isRecentlyPlayed) {
+      return { source: { type: 'recently_played' }, tracks: playableTracksInDisplayOrder };
+    }
+    // User playlist
+    return {
+      source: {
+        type: 'user_playlist',
+        playlistId: playlist!.id,
+        playlistName: playlist!.name,
+      },
+      tracks: playableTracksInDisplayOrder,
+    };
+  }
+
   if (!playlist) {
     return <div className="emptyState">Select a playlist to view its tracks.</div>;
   }
@@ -349,11 +375,11 @@ export default function PlaylistDetail({
                 onDragOver={isUserPlaylist ? e => handleDragOver(e, index) : undefined}
                 onDrop={isUserPlaylist ? () => { void handleDrop(index); } : undefined}
                 onDragEnd={isUserPlaylist ? handleDragEnd : undefined}
-                onClick={() => { if (canPlay) onPlayTrack(t); }}
+                onClick={() => { if (canPlay) onPlayTrack(t, buildContext()); }}
                 onKeyDown={e => {
                   if (canPlay && (e.key === 'Enter' || e.key === ' ')) {
                     e.preventDefault();
-                    onPlayTrack(t);
+                    onPlayTrack(t, buildContext());
                   }
                 }}
                 role={canPlay ? 'button' : undefined}
@@ -372,7 +398,7 @@ export default function PlaylistDetail({
                       className="trackRowPlayBtn"
                       aria-label={isPlaying ? 'Playing' : 'Play'}
                       title="Play"
-                      onClick={e => { e.stopPropagation(); onPlayTrack(t); }}
+                      onClick={e => { e.stopPropagation(); onPlayTrack(t, buildContext()); }}
                     >
                       <PlayIcon />
                     </button>

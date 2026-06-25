@@ -995,6 +995,18 @@ a {
   max-width: 100%;
 }
 
+/* Playback source label (e.g. "From: Workout") */
+
+.playbackSourceLabel {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 /* Repeat button — small "1" badge for repeat-one mode */
 
 .nowPlayingRepeatBtn {
@@ -1971,7 +1983,8 @@ a {
     flex: 0 1 140px;
   }
 
-  .upNextLine {
+  .upNextLine,
+  .playbackSourceLabel {
     display: none;
   }
 

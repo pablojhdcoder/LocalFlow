@@ -22,6 +22,7 @@ import {
   writeLocalflowSettings,
 } from './settings/localflowSettings';
 import { usePlaybackEngine } from './playback/usePlaybackEngine';
+import type { PlaybackContext } from './playback/playbackContext';
 import { useKeyboardShortcuts } from './playback/useKeyboardShortcuts';
 import { useMediaSession } from './playback/useMediaSession';
 import ToastContainer from './components/Toast';
@@ -134,6 +135,7 @@ export default function App() {
     restoreTime,
     isRestoring,
     onRestored,
+    playbackContext,
   } = engine;
 
   // --- Queue UX: toasts ---
@@ -262,7 +264,7 @@ export default function App() {
   }
 
   // Insert a track at the front of the queue so it plays next.
-  // If nothing is playing, start it immediately instead of queuing.
+  // If nothing is playing, start it immediately (no context — queue/play-next is context-agnostic).
   function handlePlayNext(track: Track): void {
     if (!nowPlaying) {
       startPlayback(track);
@@ -287,6 +289,11 @@ export default function App() {
 
   function handleClearQueue(): void {
     setQueue([]);
+  }
+
+  /** Central play-track entry point — routes context from PlaylistDetail / SearchResults to the engine. */
+  function handlePlayTrack(track: Track, context?: PlaybackContext): void {
+    startPlayback(track, context);
   }
 
   // --- Search ---
@@ -564,7 +571,9 @@ export default function App() {
                   pendingDownloads={pendingDownloads}
                   onDownload={handleDownload}
                   libraryTracksBySourceUrl={libraryTracksBySourceUrl}
-                  onPlayTrack={startPlayback}
+                  onPlayTrack={(track) =>
+                    startPlayback(track, { source: { type: 'search' }, tracks: [track] })
+                  }
                   onAddToQueue={handleAddToQueue}
                   userPlaylists={userPlaylists}
                   onAddToPlaylist={handleAddToPlaylist}
@@ -579,7 +588,7 @@ export default function App() {
               error={libraryError}
               playlists={playlists}
               onDeleteTrack={handleDeleteTrack}
-              onPlayTrack={startPlayback}
+              onPlayTrack={handlePlayTrack}
               onPlayNext={handlePlayNext}
               nowPlayingId={nowPlaying?.id ?? null}
               onAddToQueue={handleAddToQueue}
@@ -626,6 +635,7 @@ export default function App() {
           restoreTime={restoreTime}
           startPaused={isRestoring}
           onRestored={onRestored}
+          playbackContext={playbackContext}
           onBrowseLibrary={() => setTab('library')}
           onAddToQueue={handleAddToQueue}
         />

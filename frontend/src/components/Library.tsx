@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Track } from '../api/client';
 import type { Playlist } from '../playlists/playlistTypes';
 import { PLAYLIST_ALL_SONGS } from '../playlists/playlistTypes';
+import type { PlaybackContext } from '../playback/playbackContext';
 import PlaylistSidebar from './PlaylistSidebar';
 import PlaylistDetail from './PlaylistDetail';
 import CreatePlaylistModal from './CreatePlaylistModal';
@@ -12,7 +13,7 @@ type LibraryProps = {
   error: string | null;
   playlists: Playlist[];
   onDeleteTrack: (trackId: string) => Promise<void>;
-  onPlayTrack: (track: Track) => void;
+  onPlayTrack: (track: Track, context?: PlaybackContext) => void;
   onPlayNext: (track: Track) => void;
   nowPlayingId: string | null;
   onAddToQueue: (track: Track) => void;
